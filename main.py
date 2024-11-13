@@ -8,7 +8,7 @@ import numpy as np
 app = FastAPI()
 
 # Load the model at startup
-model = joblib.load('models/model.pkl')
+model = joblib.load('models/random_forest_model.pkl')
 
 # Security scheme for bearer token
 class TokenBearer(HTTPBearer):
