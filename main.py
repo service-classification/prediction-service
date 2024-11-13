@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 import os
@@ -74,7 +74,18 @@ class InputData(BaseModel):
     add_package: float
 
 @app.post("/predict")
-async def predict(data: InputData, token: str = Depends(token_auth_scheme)):
+async def predict(
+    data: InputData,
+    token: str = Depends(token_auth_scheme),
+    threshold: float = Query(0.0, ge=0.0, le=1.0),
+    limit: int = Query(None, ge=1)
+):
+    """
+    Predict the top group_ids with probabilities above a threshold.
+
+    - **threshold**: Return only predictions with probability greater than this value (default is 0.0).
+    - **limit**: Maximum number of predictions to return.
+    """
     try:
         # Convert input data to the format expected by the model
         input_features = np.array([[
@@ -91,10 +102,30 @@ async def predict(data: InputData, token: str = Depends(token_auth_scheme)):
             data.add_package
         ]])
 
-        # Make prediction
-        prediction = model.predict(input_features)
+        # Get the probabilities for each class
+        probabilities = model.predict_proba(input_features)[0]
 
-        # Return the prediction result
-        return {"group_id": int(prediction[0])}
+        # Get the class labels
+        class_labels = model.classes_
+
+        # Combine class labels with their probabilities
+        class_probabilities = list(zip(class_labels, probabilities))
+
+        # Filter based on the threshold
+        filtered_class_probabilities = [
+            (group_id, prob) for group_id, prob in class_probabilities if prob > threshold
+        ]
+
+        # Sort the classes based on probability in descending order
+        sorted_class_probabilities = sorted(filtered_class_probabilities, key=lambda x: x[1], reverse=True)
+
+        # Apply the limit if provided
+        if limit is not None:
+            sorted_class_probabilities = sorted_class_probabilities[:limit]
+
+        # Prepare the response
+        predictions = [{"group_id": int(group_id), "probability": float(prob)} for group_id, prob in sorted_class_probabilities]
+
+        return {"predictions": predictions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
