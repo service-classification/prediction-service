@@ -8,7 +8,7 @@ import numpy as np
 app = FastAPI()
 
 # Load the model at startup
-model = joblib.load('models/random_forest_model.pkl')
+model = joblib.load('models/model.pkl')
 
 # Security scheme for bearer token
 class TokenBearer(HTTPBearer):
@@ -70,8 +70,12 @@ class InputData(BaseModel):
     ep_for_number: float
     ep_for_line: float
     one_time_fee_for_number: float
-    equipment_rent: float = Field(..., alias='equipment rent')
+    equipment_rent: float
     add_package: float
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 @app.post("/predict")
 async def predict(
